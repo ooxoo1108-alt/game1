@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>復健小遊戲-美食急速版</title>
+  <title>復健小遊戲-美食急速挑戰</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_landmarker/face_landmarker.js"></script>
   <style>
     body { margin: 0; overflow: hidden; font-family: sans-serif; background: #87CEEB; }
     #video { visibility: hidden; position: absolute; }
     #gameCanvas { width: 100vw; height: 100vh; display: block; background: linear-gradient(to bottom, #4fc3f7, #ffffff); }
-    #ui { position: absolute; top: 15px; left: 15px; z-index: 10; padding: 12px; background: rgba(255,255,255,0.9); border-radius: 15px; border: 2px solid #0288d1; }
+    #ui { position: absolute; top: 15px; left: 15px; z-index: 10; padding: 12px; background: rgba(255,255,255,0.9); border-radius: 15px; border: 2px solid #d81b60; }
     .score-board { font-size: 26px; font-weight: bold; color: #d81b60; }
     #msg-overlay {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -22,10 +22,14 @@
 <body>
   <div id="ui"><div class="score-board">得分: <span id="score">0</span></div></div>
   <div id="msg-overlay">
-    <h2 id="msg-title">🍔 美食急速模式 🍕</h2>
-    <p id="msg-text">點擊按鈕開始練習</p>
-    <button id="start-btn">開始</button>
+    <h2 id="msg-title">🍔 美食急速練習 🍓</h2>
+    <p id="msg-text">點擊開始進行校準</p>
+    <button id="start-btn">開始 (解鎖音效)</button>
   </div>
+
+  <audio id="bgMusic" loop preload="auto">
+    <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" type="audio/mpeg">
+  </audio>
 
   <video id="video" autoplay playsinline></video>
   <canvas id="gameCanvas"></canvas>
@@ -38,61 +42,61 @@
   const scoreEl = document.getElementById("score");
   const startBtn = document.getElementById("start-btn");
   const overlay = document.getElementById("msg-overlay");
-  const msgText = document.getElementById("msg-text");
+  const bgMusic = document.getElementById("bgMusic");
 
   let faceLandmarker, score = 0, gameState = "LOADING"; 
   let threshold = 0.5, currentRatio = 0, closeRatio = 0, openRatio = 0;
-  
-  // 速度加快至 5.5
-  const foodIcons = ["🍔", "🍟", "🍕", "🍰", "🍓", "🍩", "🍦", "🍎"];
-  let food = { x: 0, y: -50, active: false, speed: 5.5, icon: "🍔", delayCounter: 0 };
-  let openFrames = 0;
   let audioCtx = null;
+  
+  // 速度加快至 6.5
+  const foodIcons = ["🍔", "🍟", "🍕", "🍣", "🍓", "🍩", "🍦", "🍎", "🥟"];
+  let food = { x: 0, y: -50, active: false, speed: 6.5, icon: "🍔", delayCounter: 0 };
+  let openFrames = 0;
+  const REQUIRED_FRAMES = 2; // 速度快，判定影格要減少才不會卡
 
   async function init() {
-    try {
-      const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
-      faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task` },
-        runningMode: "VIDEO", numFaces: 1
-      });
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-      video.srcObject = stream;
-      video.onloadedmetadata = () => {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        render();
-      };
-    } catch (e) {
-      alert("啟動失敗，請確認相機權限：" + e);
-    }
+    const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+    faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+      baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task` },
+      runningMode: "VIDEO", numFaces: 1
+    });
+    startCamera();
   }
 
-  function playScoreSound() {
+  async function startCamera() {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+    video.srcObject = stream;
+    video.onloadeddata = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      render();
+    };
+  }
+
+  function playBeep() {
     if (!audioCtx) return;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+    osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
     gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
     osc.start(); osc.stop(audioCtx.currentTime + 0.1);
   }
 
   startBtn.onclick = () => {
-    // 解鎖音訊
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    
+    // 激活音訊上下文
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    bgMusic.play().catch(e => console.log("Music blocked"));
+
     if (gameState === "LOADING") {
       gameState = "CALIBRATING_CLOSE";
-      msgText.innerText = "步驟 1：請用力「抿嘴閉緊」";
+      document.getElementById("msg-text").innerText = "步驟 1：請用力「抿嘴閉緊」";
       startBtn.innerText = "好了，擷取閉嘴";
     } else if (gameState === "CALIBRATING_CLOSE") {
       closeRatio = currentRatio;
       gameState = "CALIBRATING_OPEN";
-      msgText.innerText = "步驟 2：請「張嘴到最大」";
+      document.getElementById("msg-text").innerText = "步驟 2：請「張嘴到最大」";
       startBtn.innerText = "好了，擷取張嘴";
     } else if (gameState === "CALIBRATING_OPEN") {
       openRatio = currentRatio;
@@ -103,33 +107,31 @@
   };
 
   function render() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // 畫背景與雲
-    drawScene();
-
-    if (faceLandmarker) {
-      const results = faceLandmarker.detectForVideo(video, performance.now());
-      let isMouthOpen = false;
-
-      if (results.faceLandmarks && results.faceLandmarks.length > 0) {
-        currentRatio = getMouthRatio(results.faceLandmarks[0]);
-        if (currentRatio > threshold && currentRatio > closeRatio * 3.0) {
-          openFrames++;
-        } else { openFrames = 0; }
-        isMouthOpen = (openFrames >= 2);
-        drawMouth(isMouthOpen);
-      }
-      if (gameState === "PLAYING") updateFood(isMouthOpen);
-    }
-    requestAnimationFrame(render);
-  }
-
-  function drawScene() {
+    // 繪製背景
     const grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
     grd.addColorStop(0, "#4fc3f7"); grd.addColorStop(1, "#ffffff");
     ctx.fillStyle = grd; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "white";
-    ctx.beginPath(); ctx.arc(80, 80, 30, 0, Math.PI*2); ctx.arc(120, 70, 40, 0, Math.PI*2); ctx.arc(160, 80, 30, 0, Math.PI*2); ctx.fill();
+    drawCloud(canvas.width * 0.2, 120, 45);
+    drawCloud(canvas.width * 0.75, 180, 55);
+
+    const results = faceLandmarker.detectForVideo(video, performance.now());
+    let isMouthOpen = false;
+
+    if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+      currentRatio = getMouthRatio(results.faceLandmarks[0]);
+      if (currentRatio > threshold && currentRatio > closeRatio * 3.0) {
+        openFrames++;
+      } else { openFrames = 0; }
+      isMouthOpen = (openFrames >= REQUIRED_FRAMES);
+      drawMouth(isMouthOpen);
+    }
+    if (gameState === "PLAYING") updateFood(isMouthOpen);
+    requestAnimationFrame(render);
+  }
+
+  function drawCloud(x, y, s) {
+    ctx.fillStyle = "white"; ctx.beginPath();
+    ctx.arc(x, y, s, 0, Math.PI*2); ctx.arc(x+s*0.8, y-s*0.3, s*1.0, 0, Math.PI*2); ctx.arc(x+s*1.6, y, s, 0, Math.PI*2); ctx.fill();
   }
 
   function getMouthRatio(marks) {
@@ -140,18 +142,18 @@
 
   function drawMouth(open) {
     const w = canvas.width, h = canvas.height;
-    const mouthW = w * 0.85, mouthH = open ? h * 0.22 : h * 0.05;
+    const mouthW = w * 0.85, mouthH = open ? h * 0.22 : h * 0.06;
     const centerY = h - (h * 0.15);
     ctx.fillStyle = open ? "#880e4f" : "#ad1457";
     ctx.beginPath(); ctx.ellipse(w/2, centerY, mouthW/2, mouthH, 0, 0, Math.PI * 2); ctx.fill();
-    if(open) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 8; ctx.stroke(); }
+    if(open) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 10; ctx.stroke(); }
   }
 
   function updateFood(isMouthOpen) {
     if (!food.active) {
       food.delayCounter++;
-      if (food.delayCounter > 40) { 
-        food.x = Math.random() * (canvas.width - 100) + 50;
+      if (food.delayCounter > 45) { 
+        food.x = Math.random() * (canvas.width - 150) + 75;
         food.y = -50; 
         food.icon = foodIcons[Math.floor(Math.random() * foodIcons.length)];
         food.active = true; food.delayCounter = 0;
@@ -164,8 +166,8 @@
 
     if (food.y > canvas.height * 0.7 && isMouthOpen && food.active) {
         score += 10; scoreEl.innerText = score; food.active = false;
-        playScoreSound();
-        if (navigator.vibrate) navigator.vibrate(50);
+        playBeep();
+        if (navigator.vibrate) navigator.vibrate(60);
     }
     if (food.y > canvas.height) food.active = false;
   }
