@@ -3,31 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>復健小遊戲-手機優化版</title>
+  <title>復健小遊戲-極限挑戰版</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_landmarker/face_landmarker.js"></script>
   <style>
-    body { margin: 0; overflow: hidden; font-family: 'Microsoft JhengHei', sans-serif; background: #001219; }
+    body { margin: 0; overflow: hidden; font-family: sans-serif; background: #001219; }
     #video { visibility: hidden; position: absolute; }
-    #gameCanvas { width: 100vw; height: 100vh; display: block; background: linear-gradient(to bottom, #caf0f8 0%, #ffffff 100%); }
-    #ui { position: absolute; top: 15px; left: 15px; z-index: 10; padding: 10px; background: rgba(255,255,255,0.85); border-radius: 12px; }
-    .score-board { font-size: 28px; font-weight: bold; color: #0077b6; }
+    #gameCanvas { width: 100vw; height: 100vh; display: block; background: #caf0f8; }
+    #ui { position: absolute; top: 10px; left: 10px; z-index: 10; padding: 8px; background: rgba(255,255,255,0.9); border-radius: 8px; }
+    .score-board { font-size: 24px; font-weight: bold; color: #ae2012; }
     #msg-overlay {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: white; padding: 30px; border-radius: 25px; text-align: center;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.2); z-index: 20; min-width: 280px; border: 4px solid #ae2012;
+      background: white; padding: 25px; border-radius: 20px; text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 20; border: 4px solid #ae2012;
     }
-    button { background: #ae2012; color: white; border: none; padding: 18px 36px; font-size: 22px; border-radius: 15px; cursor: pointer; margin-top: 25px; font-weight: bold; }
-    #status { font-size: 14px; color: #555; margin-top: 10px; }
+    button { background: #ae2012; color: white; border: none; padding: 15px 30px; font-size: 20px; border-radius: 12px; cursor: pointer; margin-top: 20px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <div id="ui">
-    <div class="score-board">得分: <span id="score">0</span></div>
-    <div id="status">準備中...</div>
-  </div>
+  <div id="ui"><div class="score-board">分數: <span id="score">0</span></div></div>
   <div id="msg-overlay">
-    <h2 id="msg-title">口腔復健練習</h2>
-    <p id="msg-text">請按下方按鈕開始校準</p>
+    <h2>極限復健模式</h2>
+    <p>請點擊按鈕進行兩步驟校準</p>
     <button id="start-btn">開始校準</button>
   </div>
   <video id="video" autoplay playsinline></video>
@@ -39,27 +35,21 @@
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
   const scoreEl = document.getElementById("score");
-  const statusEl = document.getElementById("status");
-  const msgTitle = document.getElementById("msg-title");
-  const msgText = document.getElementById("msg-text");
   const startBtn = document.getElementById("start-btn");
   const overlay = document.getElementById("msg-overlay");
 
   let faceLandmarker, score = 0, gameState = "LOADING"; 
   let threshold = 0.1, currentMouthDist = 0, closeDist = 0, openDist = 0;
-  // 速度加快至 2.2，間隔縮短至 180
-  let food = { x: 0, y: -80, radius: 45, active: false, speed: 2.2, delayCounter: 100 };
+  // 速度大幅提升至 4.0，大幅縮短出現間隔
+  let food = { x: 0, y: -50, radius: 40, active: false, speed: 4.0, delayCounter: 0 };
 
   async function init() {
-    try {
-      const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
-      faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task` },
-        runningMode: "VIDEO", numFaces: 1
-      });
-      statusEl.innerText = "模型載入成功";
-      startCamera();
-    } catch(e) { statusEl.innerText = "載入失敗"; }
+    const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+    faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+      baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task` },
+      runningMode: "VIDEO", numFaces: 1
+    });
+    startCamera();
   }
 
   async function startCamera() {
@@ -75,21 +65,17 @@
   startBtn.onclick = () => {
     if (gameState === "LOADING") {
       gameState = "CALIBRATING_CLOSE";
-      msgTitle.innerText = "第一步：閉嘴";
-      msgText.innerText = "請病人放鬆閉嘴，按確定";
-      startBtn.innerText = "我閉好了";
+      startBtn.innerText = "擷取「閉嘴」數值";
     } else if (gameState === "CALIBRATING_CLOSE") {
       closeDist = currentMouthDist;
       gameState = "CALIBRATING_OPEN";
-      msgTitle.innerText = "第二步：張嘴";
-      msgText.innerText = "請病人用力張到最開，按確定";
-      startBtn.innerText = "我張好了";
+      startBtn.innerText = "擷取「最開」數值";
     } else if (gameState === "CALIBRATING_OPEN") {
       openDist = currentMouthDist;
-      threshold = closeDist + (openDist - closeDist) * 0.85; 
+      // 極限門檻：必須達到 95% 的張開度
+      threshold = closeDist + (openDist - closeDist) * 0.95; 
       gameState = "PLAYING";
       overlay.style.display = "none";
-      statusEl.innerText = "練習中...";
     }
   };
 
@@ -101,77 +87,6 @@
     if (results.faceLandmarks && results.faceLandmarks.length > 0) {
       currentMouthDist = Math.abs(results.faceLandmarks[0][13].y - results.faceLandmarks[0][14].y);
       isMouthOpen = currentMouthDist > threshold;
-      drawOptimizedMouth(isMouthOpen);
+      drawMouth(isMouthOpen);
     }
-    if (gameState === "PLAYING") updateFood(isMouthOpen);
-    requestAnimationFrame(render);
-  }
-
-  function drawOptimizedMouth(open) {
-    const scrWidth = canvas.width;
-    const scrHeight = canvas.height;
-    const centerX = scrWidth / 2;
-    // 手機優化：寬度縮減至 85%，高度稍微降低
-    const mouthW = scrWidth * 0.85;
-    const mouthH = open ? scrHeight * 0.28 : scrHeight * 0.12;
-    const centerY = scrHeight - (mouthH / 2) - 20;
-
-    ctx.save();
-    // 嘴唇邊緣
-    ctx.fillStyle = "#9b2226";
-    ctx.beginPath();
-    ctx.ellipse(centerX, centerY, mouthW / 2, mouthH, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    if(open) {
-      // 口腔內
-      ctx.fillStyle = "#330000";
-      ctx.beginPath();
-      ctx.ellipse(centerX, centerY, (mouthW / 2) * 0.9, mouthH * 0.85, 0, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // 牙齒 (手機版牙齒數量減少)
-      ctx.fillStyle = "#f1f1f1";
-      const teethCount = 6;
-      const toothW = scrWidth * 0.08;
-      for(let i=0; i<teethCount; i++) {
-        const tx = centerX - (mouthW * 0.3) + (i * mouthW * 0.12);
-        const ty = centerY - (mouthH * 0.7);
-        ctx.fillRect(tx, ty, toothW, scrHeight * 0.035);
-      }
-    }
-    ctx.restore();
-  }
-
-  function updateFood(isMouthOpen) {
-    if (!food.active) {
-      food.delayCounter++;
-      if (food.delayCounter > 180) { // 縮短間隔
-        food.x = Math.random() * (canvas.width - 160) + 80;
-        food.y = -50;
-        food.active = true;
-        food.delayCounter = 0;
-      }
-      return;
-    }
-
-    food.y += food.speed;
-    ctx.fillStyle = "#ee9b00";
-    ctx.shadowBlur = 15; ctx.shadowColor = "rgba(0,0,0,0.3)";
-    ctx.beginPath(); ctx.arc(food.x, food.y, food.radius, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0;
-
-    // 碰撞區域
-    if (food.y > canvas.height * 0.7 && food.active && isMouthOpen) {
-        score += 10;
-        scoreEl.innerText = score;
-        food.active = false;
-        food.delayCounter = 0;
-        if (navigator.vibrate) navigator.vibrate(80);
-    }
-    if (food.y > canvas.height) food.active = false;
-  }
-  init();
-</script>
-</body>
-</html>
+    if (gameState === "PLAY
