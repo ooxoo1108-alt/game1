@@ -3,27 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>復健小遊戲-極限挑戰版</title>
+  <title>復健小遊戲-穩定高強版</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_landmarker/face_landmarker.js"></script>
   <style>
-    body { margin: 0; overflow: hidden; font-family: sans-serif; background: #001219; }
+    body { margin: 0; overflow: hidden; font-family: sans-serif; background: #000; }
     #video { visibility: hidden; position: absolute; }
-    #gameCanvas { width: 100vw; height: 100vh; display: block; background: #caf0f8; }
-    #ui { position: absolute; top: 10px; left: 10px; z-index: 10; padding: 8px; background: rgba(255,255,255,0.9); border-radius: 8px; }
-    .score-board { font-size: 24px; font-weight: bold; color: #ae2012; }
+    #gameCanvas { width: 100vw; height: 100vh; display: block; background: #001d3d; }
+    #ui { position: absolute; top: 10px; left: 10px; z-index: 10; padding: 10px; background: rgba(255,255,255,0.9); border-radius: 8px; }
+    .score-board { font-size: 26px; font-weight: bold; color: #d00000; }
     #msg-overlay {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
       background: white; padding: 25px; border-radius: 20px; text-align: center;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 20; border: 4px solid #ae2012;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 20; border: 5px solid #d00000;
     }
-    button { background: #ae2012; color: white; border: none; padding: 15px 30px; font-size: 20px; border-radius: 12px; cursor: pointer; margin-top: 20px; font-weight: bold; }
+    button { background: #d00000; color: white; border: none; padding: 15px 35px; font-size: 22px; border-radius: 12px; cursor: pointer; margin-top: 20px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <div id="ui"><div class="score-board">分數: <span id="score">0</span></div></div>
+  <div id="ui"><div class="score-board">得分: <span id="score">0</span></div></div>
   <div id="msg-overlay">
-    <h2>極限復健模式</h2>
-    <p>請點擊按鈕進行兩步驟校準</p>
+    <h2>高強度穩定模式</h2>
+    <p>排除手機傾斜干擾，速度加倍</p>
     <button id="start-btn">開始校準</button>
   </div>
   <video id="video" autoplay playsinline></video>
@@ -35,6 +35,119 @@
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
   const scoreEl = document.getElementById("score");
+  const startBtn = document.getElementById("start-btn");
+  const overlay = document.getElementById("msg-overlay");
+
+  let faceLandmarker, score = 0, gameState = "LOADING"; 
+  let threshold = 0, currentMouthRatio = 0, closeRatio = 0, openRatio = 0;
+  // 速度狂飆至 6.5，出現間隔極短
+  let food = { x: 0, y: -50, radius: 45, active: false, speed: 6.5, delayCounter: 0 };
+
+  async function init() {
+    const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+    faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+      baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task` },
+      runningMode: "VIDEO", numFaces: 1
+    });
+    startCamera();
+  }
+
+  async function startCamera() {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+    video.srcObject = stream;
+    video.addEventListener("loadeddata", () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      render();
+    });
+  }
+
+  // 計算嘴巴縱橫比 (排除縮放與傾斜干擾)
+  function getMouthRatio(marks) {
+    const vertical = Math.abs(marks[13].y - marks[14].y);
+    const horizontal = Math.abs(marks[78].x - marks[308].x);
+    return vertical / horizontal;
+  }
+
+  startBtn.onclick = () => {
+    if (gameState === "LOADING") {
+      gameState = "CALIBRATING_CLOSE";
+      startBtn.innerText = "擷取「閉嘴」";
+    } else if (gameState === "CALIBRATING_CLOSE") {
+      closeRatio = currentMouthRatio;
+      gameState = "CALIBRATING_OPEN";
+      startBtn.innerText = "擷取「極限張嘴」";
+    } else if (gameState === "CALIBRATING_OPEN") {
+      openRatio = currentMouthRatio;
+      // 95% 極限門檻
+      threshold = closeRatio + (openRatio - closeRatio) * 0.95; 
+      gameState = "PLAYING";
+      overlay.style.display = "none";
+    }
+  };
+
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const results = faceLandmarker.detectForVideo(video, performance.now());
+    let isMouthOpen = false;
+
+    if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+      currentMouthRatio = getMouthRatio(results.faceLandmarks[0]);
+      isMouthOpen = currentMouthRatio > threshold;
+      drawVisual(isMouthOpen);
+    }
+    if (gameState === "PLAYING") updateFood(isMouthOpen);
+    requestAnimationFrame(render);
+  }
+
+  function drawVisual(open) {
+    const w = canvas.width, h = canvas.height;
+    const mouthW = w * 0.9, mouthH = open ? h * 0.3 : h * 0.05;
+    const centerY = h - (h * 0.15);
+
+    // 嘴巴本體
+    ctx.fillStyle = open ? "#660708" : "#9b2226";
+    ctx.beginPath();
+    ctx.ellipse(w/2, centerY, mouthW/2, mouthH, 0, 0, Math.PI * 2);
+    ctx.fill();
+    
+    if(open) {
+        ctx.strokeStyle = "gold";
+        ctx.lineWidth = 15;
+        ctx.stroke();
+    }
+  }
+
+  function updateFood(isMouthOpen) {
+    if (!food.active) {
+      food.delayCounter++;
+      if (food.delayCounter > 15) { // 幾乎不間斷
+        food.x = Math.random() * (canvas.width - 120) + 60;
+        food.y = -50;
+        food.active = true;
+        food.delayCounter = 0;
+      }
+      return;
+    }
+
+    food.y += food.speed;
+    // 繪製高對比度食物
+    ctx.fillStyle = "#ffb703";
+    ctx.beginPath(); ctx.arc(food.x, food.y, food.radius, 0, Math.PI * 2); ctx.fill();
+
+    // 碰撞偵測 (底部碰撞區)
+    if (food.y > canvas.height * 0.7 && isMouthOpen && food.active) {
+        score += 10;
+        scoreEl.innerText = score;
+        food.active = false;
+        if (navigator.vibrate) navigator.vibrate(50);
+    }
+    if (food.y > canvas.height) food.active = false;
+  }
+  init();
+</script>
+</body>
+</html>  const scoreEl = document.getElementById("score");
   const startBtn = document.getElementById("start-btn");
   const overlay = document.getElementById("msg-overlay");
 
