@@ -47,8 +47,8 @@
   let faceLandmarker, score = 0, gameState = "LOADING"; 
   let threshold = 0.5, currentRatio = 0, closeRatio = 0, openRatio = 0;
   
-  // 速度加快至 5.0 (僅修改此處)
-  let food = { x: 0, y: -50, radius: 40, active: false, speed: 5.0, delayCounter: 0 };
+  // 速度加快至 5.5
+  let food = { x: 0, y: -50, radius: 40, active: false, speed: 5.5, delayCounter: 0 };
   let openFrames = 0;
   const REQUIRED_FRAMES = 3; 
 
@@ -139,4 +139,32 @@
     const w = canvas.width, h = canvas.height;
     const mouthW = w * 0.9, mouthH = open ? h * 0.25 : h * 0.05;
     const centerY = h - (h * 0.15);
-    ctx.fillStyle = open ? "#01579b" : "#81d
+    ctx.fillStyle = open ? "#01579b" : "#81d4fa";
+    ctx.beginPath();
+    ctx.ellipse(w/2, centerY, mouthW/2, mouthH, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if(open) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 12; ctx.stroke(); }
+  }
+
+  function updateFood(isMouthOpen) {
+    if (!food.active) {
+      food.delayCounter++;
+      if (food.delayCounter > 60) { 
+        food.x = Math.random() * (canvas.width - 150) + 75;
+        food.y = -50; food.active = true; food.delayCounter = 0;
+      }
+      return;
+    }
+    food.y += food.speed;
+    ctx.fillStyle = "#ff6f00"; 
+    ctx.beginPath(); ctx.arc(food.x, food.y, food.radius, 0, Math.PI * 2); ctx.fill();
+    if (food.y > canvas.height * 0.7 && isMouthOpen && food.active) {
+        score += 10; scoreEl.innerText = score; food.active = false;
+        if (navigator.vibrate) navigator.vibrate(60);
+    }
+    if (food.y > canvas.height) food.active = false;
+  }
+  init();
+</script>
+</body>
+</html>
