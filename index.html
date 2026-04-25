@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>復健小遊戲-進階版</title>
+  <title>復健小遊戲-進階優化</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_landmarker/face_landmarker.js"></script>
   <style>
     body { margin: 0; overflow: hidden; font-family: 'Microsoft JhengHei', sans-serif; background: #a2d2ff; }
     #video { visibility: hidden; position: absolute; }
-    #gameCanvas { width: 100vw; height: 100vh; display: block; background: linear-gradient(to bottom, #a2d2ff 0%, #ffffff 100%); }
-    #ui { position: absolute; top: 20px; left: 20px; z-index: 10; }
-    .score-board { font-size: 32px; font-weight: bold; color: #003049; text-shadow: 1px 1px 2px white; }
+    #gameCanvas { width: 100vw; height: 100vh; display: block; background: linear-gradient(to bottom, #89c2d9 0%, #ffffff 100%); }
+    #ui { position: absolute; top: 20px; left: 20px; z-index: 10; padding: 10px; background: rgba(255,255,255,0.7); border-radius: 10px; }
+    .score-board { font-size: 32px; font-weight: bold; color: #013a63; text-shadow: 1px 1px 1px white; }
     #msg-overlay {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: rgba(255, 255, 255, 0.95); padding: 30px; border-radius: 25px;
-      text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.1); z-index: 20; min-width: 280px;
+      background: white; padding: 40px; border-radius: 30px; text-align: center;
+      box-shadow: 0 15px 50px rgba(0,0,0,0.15); z-index: 20; min-width: 320px;
     }
-    button { background: #ff4d6d; color: white; border: none; padding: 15px 30px; font-size: 20px; border-radius: 15px; cursor: pointer; margin-top: 20px; font-weight: bold; }
-    #status { font-size: 14px; color: #666; margin-top: 10px; }
+    button { background: #d00000; color: white; border: none; padding: 20px 40px; font-size: 24px; border-radius: 20px; cursor: pointer; margin-top: 30px; font-weight: bold; text-shadow: 0 2px 2px rgba(0,0,0,0.2); }
+    #status { font-size: 16px; color: #666; margin-top: 15px; }
   </style>
 </head>
 <body>
@@ -45,13 +45,10 @@
   const startBtn = document.getElementById("start-btn");
   const overlay = document.getElementById("msg-overlay");
 
-  let faceLandmarker;
-  let score = 0;
-  let gameState = "LOADING"; 
-  let threshold = 0.06; 
-  let currentMouthDist = 0;
-  let food = { x: 0, y: -100, radius: 30, active: false, speed: 2, delayCounter: 0 };
-  let closeDist = 0, openDist = 0;
+  let faceLandmarker, score = 0, gameState = "LOADING"; 
+  let threshold = 0.08, currentMouthDist = 0, closeDist = 0, openDist = 0;
+  // 食物參數：速度慢，增加延遲計數器
+  let food = { x: 0, y: -100, radius: 40, active: false, speed: 1.5, delayCounter: 100 };
 
   async function init() {
     try {
@@ -80,18 +77,18 @@
     if (gameState === "LOADING") {
       gameState = "CALIBRATING_CLOSE";
       msgTitle.innerText = "步驟一：放鬆";
-      msgText.innerText = "請病人「輕輕閉嘴」放鬆肌肉";
-      startBtn.innerText = "確定 (擷取閉嘴數值)";
+      msgText.innerText = "請病人輕輕閉嘴，放鬆肌肉";
+      startBtn.innerText = "確定 (擷取數值)";
     } else if (gameState === "CALIBRATING_CLOSE") {
       closeDist = currentMouthDist;
       gameState = "CALIBRATING_OPEN";
-      msgTitle.innerText = "步驟二：出力";
-      msgText.innerText = "請病人「盡力張嘴」到最開";
-      startBtn.innerText = "確定 (擷取最大數值)";
+      msgTitle.innerText = "步驟二：用力";
+      msgText.innerText = "請病人盡全力張嘴到最開！";
+      startBtn.innerText = "確定 (擷取最開數值)";
     } else if (gameState === "CALIBRATING_OPEN") {
       openDist = currentMouthDist;
-      // 關鍵門檻調整：從 50% 提高到 70% 的張開程度才算得分
-      threshold = closeDist + (openDist - closeDist) * 0.7; 
+      // 關鍵門檻：從之前的 70% 提高到極高的 90%
+      threshold = closeDist + (openDist - closeDist) * 0.9; 
       gameState = "PLAYING";
       overlay.style.display = "none";
       statusEl.innerText = "練習進行中";
@@ -104,35 +101,40 @@
     let isMouthOpen = false;
 
     if (results.faceLandmarks && results.faceLandmarks.length > 0) {
-      const marks = results.faceLandmarks[0];
-      // 計算上下唇垂直距離
-      currentMouthDist = Math.abs(marks[13].y - marks[14].y);
+      currentMouthDist = Math.abs(results.faceLandmarks[0][13].y - results.faceLandmarks[0][14].y);
       isMouthOpen = currentMouthDist > threshold;
-      drawMouth(isMouthOpen);
+      drawGiantMouth(isMouthOpen);
     }
     if (gameState === "PLAYING") updateFood(isMouthOpen);
     requestAnimationFrame(render);
   }
 
-  function drawMouth(open) {
-    // 繪製更大的嘴巴視覺
-    const mouthWidth = 140;
-    const mouthHeight = open ? 90 : 25;
+  // 繪製一個佔滿底部的巨大圖形化嘴巴
+  function drawGiantMouth(open) {
+    const mouthBottom = canvas.height - 30;
+    const mouthTop = open ? canvas.height - 250 : canvas.height - 100;
+    const mouthWidth = canvas.width;
+    const centerX = canvas.width / 2;
+
     ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height - 120);
-    
-    // 外唇
-    ctx.fillStyle = open ? "#ff758f" : "#c9184a";
+    // 嘴唇邊緣
+    ctx.fillStyle = "#a4161a";
     ctx.beginPath();
-    ctx.ellipse(0, 0, mouthWidth, mouthHeight, 0, 0, Math.PI * 2);
+    ctx.ellipse(centerX, mouthBottom - 100, mouthWidth * 0.5, open ? 150 : 80, 0, 0, Math.PI * 2);
     ctx.fill();
-    
-    // 內口 (增加層次感)
+
+    // 口腔內部 (巨大開口)
     if(open) {
-      ctx.fillStyle = "#590d22";
+      ctx.fillStyle = "#660708";
       ctx.beginPath();
-      ctx.ellipse(0, 0, mouthWidth - 20, mouthHeight - 15, 0, 0, Math.PI * 2);
+      ctx.ellipse(centerX, mouthBottom - 100, mouthWidth * 0.45, 130, 0, 0, Math.PI * 2);
       ctx.fill();
+      
+      // 牙齒裝飾 (上排)
+      ctx.fillStyle = "white";
+      for(let i=0; i<8; i++) {
+        ctx.fillRect(canvas.width * (0.2 + i * 0.08), canvas.height - 230, 20, 25);
+      }
     }
     ctx.restore();
   }
@@ -140,12 +142,11 @@
   function updateFood(isMouthOpen) {
     if (!food.active) {
       food.delayCounter++;
-      // 加入掉落間隔，約 2 秒掉一次
-      if (food.delayCounter > 120) { 
-        food.x = Math.random() * (canvas.width - 150) + 75;
-        food.y = -50;
+      // 增加延遲，約 4 秒掉一次
+      if (food.delayCounter > 240) { 
+        food.x = Math.random() * (canvas.width - 200) + 100;
+        food.y = - food.radius; // 食物更大
         food.active = true;
-        food.speed = 2.5; // 調慢掉落速度
         food.delayCounter = 0;
       }
       return;
@@ -153,25 +154,22 @@
 
     food.y += food.speed;
     
-    // 繪製食物 (橘色圓球)
+    // 繪製食物 (橘色大橘子)
     ctx.fillStyle = "#fb8500";
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = "rgba(0,0,0,0.2)";
-    ctx.beginPath();
-    ctx.arc(food.x, food.y, food.radius, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.shadowBlur = 15; ctx.shadowColor = "rgba(0,0,0,0.3)";
+    ctx.beginPath(); ctx.arc(food.x, food.y, food.radius, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
 
-    // 碰撞偵測 (當食物進入嘴巴範圍)
-    if (food.y > canvas.height - 180 && food.y < canvas.height - 80) {
-      if (Math.abs(food.x - canvas.width / 2) < 100 && isMouthOpen) {
+    // 碰撞偵測 (食物掉到底部且嘴巴張開)
+    if (food.y > canvas.height - 230 && food.active && isMouthOpen) {
         score += 10;
         scoreEl.innerText = score;
         food.active = false;
-        // 吃到後震動反饋 (若手機支援)
-        if (navigator.vibrate) navigator.vibrate(50);
-      }
+        //吃到食物時重置空白期計數器
+        food.delayCounter = 0;
+        if (navigator.vibrate) navigator.vibrate(100);
     }
+
     if (food.y > canvas.height) food.active = false;
   }
   init();
