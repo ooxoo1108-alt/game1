@@ -1,0 +1,105 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2487.5">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+  </style>
+</head>
+<body>
+<p class="p1">&lt;!DOCTYPE html&gt;</p>
+<p class="p1">&lt;html lang="zh-Hant"&gt;</p>
+<p class="p1">&lt;head&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;meta charset="UTF-8"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;title&gt;復健小遊戲：大口吃食物&lt;/title&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_landmarker/face_landmarker.js"&gt;&lt;/script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;style&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>body { margin: 0; overflow: hidden; font-family: "Microsoft JhengHei", sans-serif; background: #a2d2ff; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>#video { visibility: hidden; position: absolute; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>#gameCanvas { width: 100vw; height: 100vh; display: block; background: linear-gradient(to bottom, #a2d2ff 0%, #ffffff 100%); }</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>/* UI 介面 */</p>
+<p class="p1"><span class="Apple-converted-space">    </span>#ui { position: absolute; top: 20px; left: 20px; z-index: 10; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.score-board { font-size: 32px; font-weight: bold; color: #003049; text-shadow: 1px 1px 2px white; }</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>/* 提示訊息視窗 */</p>
+<p class="p1"><span class="Apple-converted-space">    </span>#msg-overlay {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>background: rgba(255, 255, 255, 0.9); padding: 20px 40px; border-radius: 20px;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 20;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>button {<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>background: #ff4d6d; color: white; border: none; padding: 10px 25px;<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>font-size: 20px; border-radius: 10px; cursor: pointer; margin-top: 15px;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/style&gt;</p>
+<p class="p1">&lt;/head&gt;</p>
+<p class="p1">&lt;body&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;div id="ui"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="score-board"&gt;分數: &lt;span id="score"&gt;0&lt;/span&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="status"&gt;系統載入中...&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;div id="msg-overlay"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;h2 id="msg-title"&gt;歡迎使用復健練習&lt;/h2&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;p id="msg-text"&gt;點擊下方按鈕開始校準&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;button id="start-btn"&gt;開始校準&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;video id="video" autoplay playsinline&gt;&lt;/video&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;canvas id="gameCanvas"&gt;&lt;/canvas&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;script type="module"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>import { FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>const video = document.getElementById("video");</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const canvas = document.getElementById("gameCanvas");</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const ctx = canvas.getContext("2d");</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const scoreEl = document.getElementById("score");</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const statusEl = document.getElementById("status");</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const msgTitle = document.getElementById("msg-title");</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const msgText = document.getElementById("msg-text");</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const startBtn = document.getElementById("start-btn");</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const overlay = document.getElementById("msg-overlay");</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>let faceLandmarker;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let score = 0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let gameState = "LOADING"; // LOADING, CALIBRATING_CLOSE, CALIBRATING_OPEN, PLAYING</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let threshold = 0.05; // 預設張嘴閾值</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let currentMouthDist = 0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let food = { x: 0, y: -50, radius: 25, active: false, speed: 3 };</p>
+<p class="p2"><span class="Apple-converted-space">  </span></p>
+<p class="p1"><span class="Apple-converted-space">  </span>// 紀錄校準數值</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let closeDist = 0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let openDist = 0;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>async function init() {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");</p>
+<p class="p1"><span class="Apple-converted-space">    </span>faceLandmarker = await FaceLandmarker.createFromOptions(vision, {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task` },</p>
+<p class="p1"><span class="Apple-converted-space">      </span>runningMode: "VIDEO", numFaces: 1</p>
+<p class="p1"><span class="Apple-converted-space">    </span>});</p>
+<p class="p1"><span class="Apple-converted-space">    </span>statusEl.innerText = "準備就緒";</p>
+<p class="p1"><span class="Apple-converted-space">    </span>startCamera();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>async function startCamera() {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });</p>
+<p class="p1"><span class="Apple-converted-space">    </span>video.srcObject = stream;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>video.addEventListener("loadeddata", () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>canvas.width = window.innerWidth;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>canvas.height = window.innerHeight;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>render();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>});</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>// 按</p>
+</body>
+</html>
