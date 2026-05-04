@@ -3,18 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>口腔復健-美食急速版</title>
+  <title>口腔復健-超高感度版</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_landmarker/face_landmarker.js"></script>
   <style>
     body { margin: 0; overflow: hidden; font-family: sans-serif; background: #87CEEB; }
     #video { visibility: hidden; position: absolute; }
     #gameCanvas { width: 100vw; height: 100vh; display: block; }
     
-    /* UI 頂部得分 */
     #ui { position: absolute; top: 15px; left: 15px; z-index: 100; padding: 12px; background: rgba(255,255,255,0.9); border-radius: 15px; border: 2px solid #0288d1; }
     .score-board { font-size: 24px; font-weight: bold; color: #0288d1; }
 
-    /* 左側調整按鈕區 */
     #side-controls { 
       position: absolute; left: 10px; top: 50%; transform: translateY(-50%); 
       z-index: 200; display: flex; flex-direction: column; gap: 15px;
@@ -25,11 +23,10 @@
       font-size: 30px; font-weight: bold; color: white; cursor: pointer;
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
-    #btn-plus { background: #4caf50; }  /* 變好張開 */
-    #btn-minus { background: #f44336; } /* 變難張開 */
+    #btn-plus { background: #4caf50; }  /* 讓嘴巴變好張開 */
+    #btn-minus { background: #f44336; } /* 讓嘴巴變難張開 */
     .btn-label { color: white; font-size: 12px; text-align: center; font-weight: bold; }
 
-    /* 中央訊息層 */
     #msg-overlay {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
       background: white; padding: 30px; border-radius: 25px; text-align: center;
@@ -37,25 +34,23 @@
     }
     #start-btn { background: #0288d1; color: white; border: none; padding: 15px 40px; font-size: 22px; border-radius: 20px; cursor: pointer; margin-top: 20px; font-weight: bold; }
     
-    /* 靈敏度數值顯示 */
-    #sens-display { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 10px; font-size: 14px; z-index: 100; }
+    #sens-display { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.6); padding: 8px 20px; border-radius: 10px; font-size: 16px; z-index: 100; border: 1px solid #fff; }
   </style>
 </head>
 <body>
   <div id="ui"><div class="score-board">分數: <span id="score">0</span></div></div>
   
-  <!-- 左側控制鈕 -->
   <div id="side-controls">
-    <div class="btn-label">太難張</div>
+    <div class="btn-label">太難張(+)</div>
     <button id="btn-plus" class="adjust-btn">+</button>
-    <div class="btn-label">自動張</div>
+    <div class="btn-label">自動張(-)</div>
     <button id="btn-minus" class="adjust-btn">-</button>
   </div>
 
-  <div id="sens-display">靈敏度補償: <span id="sens-val">0.95</span></div>
+  <div id="sens-display">靈敏度補償 (越小越易張): <span id="sens-val">0.90</span></div>
 
   <div id="msg-overlay">
-    <h2 id="msg-title">🍔 食物急速挑戰 🍕</h2>
+    <h2 id="msg-title">🍔 美食急速練習 🍓</h2>
     <p id="msg-text">點擊開始進行校準</p>
     <button id="start-btn">開始 (解鎖音效)</button>
   </div>
@@ -81,8 +76,8 @@
   let faceLandmarker, score = 0, gameState = "LOADING"; 
   let currentRatio = 0, closeRatio = 0, openRatio = 0;
   
-  // 核心靈敏度：數值越高越難張開
-  let sensitivityOffset = 0.95; 
+  // 核心參數調整
+  let sensitivityOffset = 0.90; 
   let finalThreshold = 0.5;
 
   const foodIcons = ["🍔", "🍟", "🍕", "🍰", "🍓", "🍩", "🍦", "🍎", "🥟"];
@@ -114,19 +109,19 @@
     return v / h;
   }
 
-  // 調整按鈕邏輯
+  // 調整邏輯：點 + 會減小數值(變靈敏)，點 - 會增大數值(變遲鈍)
   document.getElementById("btn-plus").onclick = () => { 
-    sensitivityOffset -= 0.05; 
+    sensitivityOffset -= 0.1; 
     sensitivityOffset = Math.max(0.1, sensitivityOffset);
-    updateUI(); 
+    updateThreshold(); 
   };
   document.getElementById("btn-minus").onclick = () => { 
-    sensitivityOffset += 0.05; 
-    sensitivityOffset = Math.min(2.0, sensitivityOffset);
-    updateUI(); 
+    sensitivityOffset += 0.1; 
+    sensitivityOffset = Math.min(5.0, sensitivityOffset); // 上限放寬到 5.0
+    updateThreshold(); 
   };
 
-  function updateUI() {
+  function updateThreshold() {
     sensValEl.innerText = sensitivityOffset.toFixed(2);
     finalThreshold = closeRatio + (openRatio - closeRatio) * sensitivityOffset;
   }
@@ -135,7 +130,7 @@
     bgMusic.play().catch(e => console.log("Audio Ready"));
     if (gameState === "LOADING") {
       gameState = "CALIBRATING_CLOSE";
-      document.getElementById("msg-text").innerText = "步驟 1：請「抿嘴閉緊」";
+      document.getElementById("msg-text").innerText = "步驟 1：請「完全閉緊嘴巴」";
       startBtn.innerText = "擷取閉嘴";
     } else if (gameState === "CALIBRATING_CLOSE") {
       closeRatio = currentRatio;
@@ -144,7 +139,7 @@
       startBtn.innerText = "擷取張嘴";
     } else if (gameState === "CALIBRATING_OPEN") {
       openRatio = currentRatio;
-      updateUI();
+      updateThreshold();
       gameState = "PLAYING";
       overlay.style.display = "none";
     }
