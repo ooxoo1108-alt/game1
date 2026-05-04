@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>口腔復健-穩定校準版</title>
+  <title>口腔復健</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_landmarker/face_landmarker.js"></script>
   <style>
     body { margin: 0; overflow: hidden; font-family: sans-serif; background: #87CEEB; }
@@ -34,11 +34,14 @@
     }
     #start-btn { background: #0288d1; color: white; border: none; padding: 15px 40px; font-size: 22px; border-radius: 20px; cursor: pointer; margin-top: 20px; font-weight: bold; }
     
-    #sens-display { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.6); padding: 8px 20px; border-radius: 10px; font-size: 16px; z-index: 100; border: 1px solid #fff; }
+    #sens-display { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.6); padding: 8px 20px; border-radius: 10px; font-size: 14px; z-index: 100; border: 1px solid #fff; }
   </style>
 </head>
 <body>
-  <div id="ui"><div class="score-board">分數: <span id="score">0</span></div></div>
+  <div id="ui">
+    <div class="score-board">分數: <span id="score">0</span></div>
+    <div id="feedback" style="font-size:14px; color:red; height:20px;"></div>
+  </div>
   
   <div id="side-controls">
     <div class="btn-label">太難張(+)</div>
@@ -47,11 +50,11 @@
     <button id="btn-minus" class="adjust-btn">-</button>
   </div>
 
-  <div id="sens-display">靈敏度補償 (越小越易張): <span id="sens-val">0.90</span></div>
+  <div id="sens-display">靈敏度補償: <span id="sens-val">0.90</span> (越小越容易張嘴)</div>
 
   <div id="msg-overlay">
-    <h2 id="msg-title">🦷 口腔復健 🦷</h2>
-    <p id="msg-text">點擊開始校準<br><small>(請確保光線充足)</small></p>
+    <h2 id="msg-title">🦷 口腔復健：挑食大作戰 🦷</h2>
+    <p id="msg-text">吃到美食 +10 分<br><span style="color:red;">吃到垃圾 -20 分</span><br><br>點擊開始校準</p>
     <button id="start-btn">開始遊戲</button>
   </div>
 
@@ -68,6 +71,7 @@
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
   const scoreEl = document.getElementById("score");
+  const feedbackEl = document.getElementById("feedback");
   const startBtn = document.getElementById("start-btn");
   const overlay = document.getElementById("msg-overlay");
   const bgMusic = document.getElementById("bgMusic");
@@ -78,12 +82,13 @@
   let sensitivityOffset = 0.90; 
   let finalThreshold = 0.5;
 
-  // 數值平滑化濾波器
   let ratioHistory = [];
   const historyLimit = 5; 
 
   const foodIcons = ["🍔", "🍟", "🍕", "🍰", "🍓", "🍩", "🍦", "🍎", "🥟"];
-  let food = { x: 0, y: -50, active: false, speed: 5.5, icon: "🍔", delayCounter: 0 };
+  const trashIcons = ["💣", "💩", "☣️", "💀", "🧤", "👞"];
+  
+  let item = { x: 0, y: -50, active: false, speed: 5.5, icon: "🍔", type: "FOOD", delayCounter: 0 };
   let openFrames = 0;
 
   async function init() {
@@ -109,8 +114,6 @@
     const v = Math.abs(marks[13].y - marks[14].y);
     const h = Math.abs(marks[78].x - marks[308].x);
     let rawRatio = v / h;
-    
-    // 平滑處理：取最近幾幀的平均值，減少跳動
     ratioHistory.push(rawRatio);
     if(ratioHistory.length > historyLimit) ratioHistory.shift();
     return ratioHistory.reduce((a, b) => a + b) / ratioHistory.length;
@@ -128,6 +131,11 @@
   function updateThreshold() {
     sensValEl.innerText = sensitivityOffset.toFixed(2);
     finalThreshold = closeRatio + (openRatio - closeRatio) * sensitivityOffset;
+  }
+
+  function showFeedback(text) {
+    feedbackEl.innerText = text;
+    setTimeout(() => { feedbackEl.innerText = ""; }, 800);
   }
 
   startBtn.onclick = () => {
@@ -167,7 +175,7 @@
       }
       drawMouth(isMouthOpen);
     }
-    if (gameState === "PLAYING") updateFood(isMouthOpen);
+    if (gameState === "PLAYING") updateGameItems(isMouthOpen);
     requestAnimationFrame(render);
   }
 
@@ -180,25 +188,48 @@
     if(open) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 10; ctx.stroke(); }
   }
 
-  function updateFood(isMouthOpen) {
-    if (!food.active) {
-      food.delayCounter++;
-      if (food.delayCounter > 45) { 
-        food.x = Math.random() * (canvas.width - 150) + 75;
-        food.y = -50; food.icon = foodIcons[Math.floor(Math.random() * foodIcons.length)];
-        food.active = true; food.delayCounter = 0;
+  function updateGameItems(isMouthOpen) {
+    if (!item.active) {
+      item.delayCounter++;
+      if (item.delayCounter > 45) { 
+        item.x = Math.random() * (canvas.width - 150) + 75;
+        item.y = -50; 
+        
+        // 70% 機率出美食，30% 機率出垃圾
+        if (Math.random() > 0.3) {
+          item.icon = foodIcons[Math.floor(Math.random() * foodIcons.length)];
+          item.type = "FOOD";
+        } else {
+          item.icon = trashIcons[Math.floor(Math.random() * trashIcons.length)];
+          item.type = "TRASH";
+        }
+        
+        item.active = true; 
+        item.delayCounter = 0;
       }
       return;
     }
-    food.y += food.speed;
-    ctx.font = "50px serif"; ctx.textAlign = "center";
-    ctx.fillText(food.icon, food.x, food.y);
+    
+    item.y += item.speed;
+    ctx.font = "60px serif"; ctx.textAlign = "center";
+    ctx.fillText(item.icon, item.x, item.y);
 
-    if (food.y > canvas.height * 0.7 && isMouthOpen && food.active) {
-        score += 10; scoreEl.innerText = score; food.active = false;
-        if (navigator.vibrate) navigator.vibrate(60);
+    // 判定區域
+    if (item.y > canvas.height * 0.7 && isMouthOpen && item.active) {
+        if (item.type === "FOOD") {
+          score += 10;
+          showFeedback("好吃！+10");
+          if (navigator.vibrate) navigator.vibrate(60);
+        } else {
+          score -= 20;
+          showFeedback("噁心！-20");
+          if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // 長震動
+        }
+        scoreEl.innerText = score; 
+        item.active = false;
     }
-    if (food.y > canvas.height) food.active = false;
+    
+    if (item.y > canvas.height) item.active = false;
   }
   init();
 </script>
