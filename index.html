@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>口腔復健-數據可視化版</title>
+  <title>口腔復健</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_landmarker/face_landmarker.js"></script>
   <style>
     body { margin: 0; overflow: hidden; font-family: sans-serif; background: #87CEEB; }
@@ -12,7 +12,6 @@
     
     #ui { position: absolute; top: 15px; left: 15px; z-index: 100; padding: 12px; background: rgba(255,255,255,0.9); border-radius: 15px; border: 2px solid #0288d1; }
     
-    /* 數值即時監控表 */
     #monitor { position: absolute; top: 15px; right: 15px; z-index: 100; background: rgba(0,0,0,0.7); color: #0f0; padding: 10px; font-family: monospace; border-radius: 10px; font-size: 14px; }
 
     #side-controls { 
@@ -22,16 +21,18 @@
     .adjust-btn { 
       width: 70px; height: 70px; border-radius: 50%; border: 4px solid white; 
       font-size: 35px; font-weight: bold; color: white; cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
     #btn-plus { background: #4caf50; } 
     #btn-minus { background: #f44336; } 
 
     #msg-overlay {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: white; padding: 30px; border-radius: 25px; text-align: center;
-      z-index: 300; border: 4px solid #0288d1; min-width: 280px;
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(255,255,255,0.95); display: flex; flex-direction: column;
+      justify-content: center; align-items: center; z-index: 1000; text-align: center;
     }
-    #start-btn { background: #0288d1; color: white; border: none; padding: 15px 40px; font-size: 22px; border-radius: 20px; font-weight: bold; }
+    #start-btn { background: #0288d1; color: white; border: none; padding: 20px 50px; font-size: 24px; border-radius: 30px; font-weight: bold; cursor: pointer; }
+    .guide-text { color: #555; margin-bottom: 20px; padding: 0 20px; }
   </style>
 </head>
 <body>
@@ -45,16 +46,21 @@
   <div id="side-controls">
     <button id="btn-plus" class="adjust-btn">＋</button>
     <button id="btn-minus" class="adjust-btn">－</button>
-    <div style="color:white; font-size:12px; text-align:center; background:rgba(0,0,0,0.5)">
-      點 [-] 解決自動張嘴
+    <div style="color:white; font-size:12px; text-align:center; background:rgba(0,0,0,0.5); padding:5px; border-radius:5px;">
+      自動張嘴點[-]
     </div>
   </div>
 
   <div id="msg-overlay">
-    <h2>🍔 食物急速挑戰 🍓</h2>
-    <p>校準完若自動張嘴，請猛點左側 [－]</p>
-    <button id="start-btn">開始校準</button>
+    <h1 style="color:#0288d1;">口腔復健遊戲</h1>
+    <p class="guide-text" id="msg-text">點擊按鈕開始「閉嘴與張嘴」校準<br>(點擊同時將開啟背景音樂)</p>
+    <button id="start-btn">開始遊戲</button>
   </div>
+
+  <!-- 背景音樂，換了一個比較穩定的連結 -->
+  <audio id="bgMusic" loop preload="auto">
+    <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+  </audio>
 
   <video id="video" autoplay playsinline></video>
   <canvas id="gameCanvas"></canvas>
@@ -69,6 +75,8 @@
   const thrVEl = document.getElementById("thr-v");
   const startBtn = document.getElementById("start-btn");
   const overlay = document.getElementById("msg-overlay");
+  const bgMusic = document.getElementById("bgMusic");
+  const msgText = document.getElementById("msg-text");
 
   let faceLandmarker, score = 0, gameState = "LOADING"; 
   let currentRatio = 0, closeRatio = 0, openRatio = 0;
@@ -88,9 +96,17 @@
   }
 
   async function startCamera() {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-    video.srcObject = stream;
-    video.onloadedmetadata = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; render(); };
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      video.srcObject = stream;
+      video.onloadedmetadata = () => { 
+        canvas.width = window.innerWidth; 
+        canvas.height = window.innerHeight; 
+        render(); 
+      };
+    } catch (err) {
+      alert("無法開啟鏡頭，請確認權限設定。");
+    }
   }
 
   function getMouthRatio(marks) {
@@ -99,24 +115,28 @@
     return v / h;
   }
 
-  // 暴力調整邏輯：直接改門檻
   document.getElementById("btn-plus").onclick = () => { sensitivityOffset -= 0.2; updateThreshold(); };
   document.getElementById("btn-minus").onclick = () => { sensitivityOffset += 0.2; updateThreshold(); };
 
   function updateThreshold() {
-    // 門檻 = 閉嘴值 + (張嘴差距 * 偏移量)
     finalThreshold = closeRatio + (openRatio - closeRatio) * sensitivityOffset;
+    if (finalThreshold <= 0) finalThreshold = 0.05;
     thrVEl.innerText = finalThreshold.toFixed(3);
   }
 
   startBtn.onclick = () => {
+    // 解決音樂播放問題
+    bgMusic.play().catch(e => console.log("音樂播放受阻:", e));
+
     if (gameState === "LOADING") {
       gameState = "CAL_CLOSE";
-      startBtn.innerText = "擷取閉嘴狀態";
+      msgText.innerHTML = "請保持「<strong>閉嘴、抿嘴</strong>」狀態";
+      startBtn.innerText = "擷取閉嘴數據";
     } else if (gameState === "CAL_CLOSE") {
       closeRatio = currentRatio;
       gameState = "CAL_OPEN";
-      startBtn.innerText = "擷取大張嘴狀態";
+      msgText.innerHTML = "請保持「<strong>張大嘴巴</strong>」狀態";
+      startBtn.innerText = "擷取張嘴數據";
     } else if (gameState === "CAL_OPEN") {
       openRatio = currentRatio;
       updateThreshold();
@@ -136,7 +156,6 @@
       currentRatio = getMouthRatio(results.faceLandmarks[0]);
       curVEl.innerText = currentRatio.toFixed(3);
       
-      // 判定逻辑
       if (gameState === "PLAYING") {
         isMouthOpen = (currentRatio > finalThreshold);
       }
@@ -160,8 +179,10 @@
       food.delayCounter++;
       if (food.delayCounter > 40) { 
         food.x = Math.random() * (canvas.width - 100) + 50;
-        food.y = -50; food.icon = foodIcons[Math.floor(Math.random() * foodIcons.length)];
-        food.active = true; food.delayCounter = 0;
+        food.y = -50; 
+        food.icon = foodIcons[Math.floor(Math.random() * foodIcons.length)];
+        food.active = true; 
+        food.delayCounter = 0;
       }
       return;
     }
