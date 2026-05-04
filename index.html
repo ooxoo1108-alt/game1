@@ -2,63 +2,68 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>口腔復健</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_landmarker/face_landmarker.js"></script>
   <style>
-    body { margin: 0; overflow: hidden; font-family: sans-serif; background: #87CEEB; }
-    #video { visibility: hidden; position: absolute; }
-    #gameCanvas { width: 100vw; height: 100vh; display: block; }
+    /* 確保手機滿版，不產生捲軸 */
+    body { margin: 0; overflow: hidden; position: fixed; width: 100%; height: 100%; font-family: sans-serif; background: #87CEEB; touch-action: none; }
+    #video { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    #gameCanvas { width: 100vw; height: 100vh; object-fit: cover; display: block; }
     
-    #ui { position: absolute; top: 15px; left: 15px; z-index: 100; padding: 12px; background: rgba(255,255,255,0.9); border-radius: 15px; border: 2px solid #0288d1; }
-    .score-board { font-size: 24px; font-weight: bold; color: #0288d1; }
+    /* UI 面板 */
+    #ui { position: absolute; top: 20px; left: 20px; z-index: 100; padding: 10px; background: rgba(255,255,255,0.9); border-radius: 12px; border: 2px solid #0288d1; pointer-events: none; }
+    .score-board { font-size: 22px; font-weight: bold; color: #0288d1; }
 
+    /* 側邊控制鈕 - 針對拇指位置優化 */
     #side-controls { 
-      position: absolute; left: 10px; top: 50%; transform: translateY(-50%); 
-      z-index: 200; display: flex; flex-direction: column; gap: 15px;
-      background: rgba(0,0,0,0.2); padding: 10px; border-radius: 20px;
+      position: absolute; right: 15px; top: 50%; transform: translateY(-50%); 
+      z-index: 200; display: flex; flex-direction: column; gap: 20px;
     }
     .adjust-btn { 
-      width: 65px; height: 65px; border-radius: 50%; border: none; 
-      font-size: 30px; font-weight: bold; color: white; cursor: pointer;
+      width: 70px; height: 70px; border-radius: 50%; border: 3px solid white; 
+      font-size: 35px; font-weight: bold; color: white; cursor: pointer;
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
     #btn-plus { background: #4caf50; } 
     #btn-minus { background: #f44336; } 
-    .btn-label { color: white; font-size: 12px; text-align: center; font-weight: bold; }
 
+    /* 重置與數值監控 */
+    #monitor-bar { position: absolute; bottom: 10px; width: 100%; display: flex; justify-content: center; gap: 10px; z-index: 150; }
+    .info-tag { background: rgba(0,0,0,0.6); color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; border: 1px solid rgba(255,255,255,0.3); }
+    #reset-btn { background: #ff9800; color: white; border: none; padding: 5px 15px; border-radius: 20px; font-weight: bold; }
+
+    /* 校準覆蓋層 */
     #msg-overlay {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: white; padding: 30px; border-radius: 25px; text-align: center;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.2); z-index: 300; border: 4px solid #0288d1; min-width: 280px;
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: white; display: flex; flex-direction: column;
+      justify-content: center; align-items: center; z-index: 1000; text-align: center;
     }
-    #start-btn { background: #0288d1; color: white; border: none; padding: 15px 40px; font-size: 22px; border-radius: 20px; cursor: pointer; margin-top: 20px; font-weight: bold; }
-    
-    #sens-display { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.6); padding: 8px 20px; border-radius: 10px; font-size: 14px; z-index: 100; border: 1px solid #fff; }
+    #start-btn { background: #0288d1; color: white; border: none; padding: 18px 50px; font-size: 24px; border-radius: 30px; font-weight: bold; }
   </style>
 </head>
 <body>
   <div id="ui">
-    <div class="score-board">分數: <span id="score">0</span></div>
-    <div id="feedback" style="font-size:14px; color:red; height:20px;"></div>
+    <div class="score-board">得分: <span id="score">0</span></div>
   </div>
   
   <div id="side-controls">
-    <div class="btn-label">太難張(+)</div>
-    <button id="btn-plus" class="adjust-btn">+</button>
-    <div class="btn-label">自動張(-)</div>
-    <button id="btn-minus" class="adjust-btn">-</button>
+    <button id="btn-plus" class="adjust-btn">＋</button>
+    <button id="btn-minus" class="adjust-btn">－</button>
   </div>
 
-  <div id="sens-display">靈敏度補償: <span id="sens-val">0.90</span> (越小越容易張嘴)</div>
+  <div id="monitor-bar">
+    <div class="info-tag">門檻: <span id="thr-val">0.90</span></div>
+    <button id="reset-btn">重新校準</button>
+  </div>
 
   <div id="msg-overlay">
-    <h2 id="msg-title">🦷 口腔復健：挑食大作戰 🦷</h2>
-    <p id="msg-text">吃到美食 +10 分<br><span style="color:red;">吃到垃圾 -20 分</span><br><br>點擊開始校準</p>
+    <h2 style="color:#0288d1">🦷 口腔復健遊戲</h2>
+    <p id="msg-text">掃描成功！請點擊開始校準</p>
     <button id="start-btn">開始遊戲</button>
   </div>
 
-  <audio id="bgMusic" loop preload="auto">
+  <audio id="bgMusic" loop>
     <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" type="audio/mpeg">
   </audio>
 
@@ -71,25 +76,20 @@
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
   const scoreEl = document.getElementById("score");
-  const feedbackEl = document.getElementById("feedback");
+  const thrValEl = document.getElementById("thr-val");
   const startBtn = document.getElementById("start-btn");
   const overlay = document.getElementById("msg-overlay");
   const bgMusic = document.getElementById("bgMusic");
-  const sensValEl = document.getElementById("sens-val");
 
   let faceLandmarker, score = 0, gameState = "LOADING"; 
-  let currentRatio = 0, closeRatio = 0, openRatio = 0;
+  let currentRatio = 0, closeRatio = 0.1, openRatio = 0.3;
   let sensitivityOffset = 0.90; 
-  let finalThreshold = 0.5;
-
+  let finalThreshold = 0.15;
   let ratioHistory = [];
-  const historyLimit = 5; 
 
-  const foodIcons = ["🍔", "🍟", "🍕", "🍰", "🍓", "🍩", "🍦", "🍎", "🥟"];
-  const trashIcons = ["💣", "💩", "☣️", "💀", "🧤", "👞"];
-  
-  let item = { x: 0, y: -50, active: false, speed: 5.5, icon: "🍔", type: "FOOD", delayCounter: 0 };
-  let openFrames = 0;
+  const foodIcons = ["🍔", "🍎", "🍓", "🍕", "🍰"];
+  const trashIcons = ["💣", "💩", "💀"];
+  let item = { x: 0, y: -50, active: false, speed: 6, icon: "🍔", type: "FOOD", delay: 0 };
 
   async function init() {
     const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
@@ -113,45 +113,35 @@
   function getMouthRatio(marks) {
     const v = Math.abs(marks[13].y - marks[14].y);
     const h = Math.abs(marks[78].x - marks[308].x);
-    let rawRatio = v / h;
-    ratioHistory.push(rawRatio);
-    if(ratioHistory.length > historyLimit) ratioHistory.shift();
-    return ratioHistory.reduce((a, b) => a + b) / ratioHistory.length;
+    let raw = v / h;
+    ratioHistory.push(raw);
+    if(ratioHistory.length > 5) ratioHistory.shift();
+    return ratioHistory.reduce((a,b)=>a+b)/ratioHistory.length;
   }
 
-  document.getElementById("btn-plus").onclick = () => { 
-    sensitivityOffset -= 0.1; sensitivityOffset = Math.max(0.1, sensitivityOffset);
-    updateThreshold(); 
-  };
-  document.getElementById("btn-minus").onclick = () => { 
-    sensitivityOffset += 0.1; sensitivityOffset = Math.min(5.0, sensitivityOffset);
-    updateThreshold(); 
-  };
+  document.getElementById("btn-plus").onclick = () => { sensitivityOffset -= 0.15; updateThr(); };
+  document.getElementById("btn-minus").onclick = () => { sensitivityOffset += 0.15; updateThr(); };
+  document.getElementById("reset-btn").onclick = () => { location.reload(); };
 
-  function updateThreshold() {
-    sensValEl.innerText = sensitivityOffset.toFixed(2);
+  function updateThr() {
     finalThreshold = closeRatio + (openRatio - closeRatio) * sensitivityOffset;
-  }
-
-  function showFeedback(text) {
-    feedbackEl.innerText = text;
-    setTimeout(() => { feedbackEl.innerText = ""; }, 800);
+    thrValEl.innerText = sensitivityOffset.toFixed(2);
   }
 
   startBtn.onclick = () => {
-    bgMusic.play().catch(() => {});
+    bgMusic.play().catch(()=>{});
     if (gameState === "LOADING") {
       gameState = "CAL_CLOSE";
-      document.getElementById("msg-text").innerText = "步驟 1：請確實「閉緊嘴巴」";
-      startBtn.innerText = "擷取閉嘴數據";
+      document.getElementById("msg-text").innerHTML = "步驟 1：請確實<strong>閉緊嘴巴</strong>";
+      startBtn.innerText = "擷取閉嘴";
     } else if (gameState === "CAL_CLOSE") {
       closeRatio = currentRatio;
       gameState = "CAL_OPEN";
-      document.getElementById("msg-text").innerText = "步驟 2：請「張大嘴巴」";
-      startBtn.innerText = "擷取張嘴數據";
+      document.getElementById("msg-text").innerHTML = "步驟 2：請<strong>張大嘴巴</strong>";
+      startBtn.innerText = "擷取張嘴";
     } else if (gameState === "CAL_OPEN") {
       openRatio = currentRatio;
-      updateThreshold();
+      updateThr();
       gameState = "PLAYING";
       overlay.style.display = "none";
     }
@@ -159,76 +149,62 @@
 
   function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    grd.addColorStop(0, "#4fc3f7"); grd.addColorStop(1, "#ffffff");
-    ctx.fillStyle = grd; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#87CEEB"; ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     const results = faceLandmarker.detectForVideo(video, performance.now());
     let isMouthOpen = false;
 
     if (results.faceLandmarks && results.faceLandmarks.length > 0) {
       currentRatio = getMouthRatio(results.faceLandmarks[0]);
-      if (gameState === "PLAYING") {
-        if (currentRatio > finalThreshold) { openFrames++; } 
-        else { openFrames = 0; }
-        isMouthOpen = (openFrames >= 2);
-      }
-      drawMouth(isMouthOpen);
+      if (gameState === "PLAYING") isMouthOpen = (currentRatio > finalThreshold);
+      
+      // 繪製簡單臉部輪廓確保使用者知道有對準
+      ctx.strokeStyle = "rgba(255,255,255,0.3)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      results.faceLandmarks[0].slice(0,10).forEach((p,i)=>{
+        if(i==0) ctx.moveTo(p.x*canvas.width, p.y*canvas.height);
+        else ctx.lineTo(p.x*canvas.width, p.y*canvas.height);
+      });
+      ctx.stroke();
     }
-    if (gameState === "PLAYING") updateGameItems(isMouthOpen);
+    
+    drawMouth(isMouthOpen);
+    if (gameState === "PLAYING") updateItem(isMouthOpen);
     requestAnimationFrame(render);
   }
 
   function drawMouth(open) {
     const w = canvas.width, h = canvas.height;
-    const mouthW = w * 0.85, mouthH = open ? h * 0.22 : h * 0.05;
-    const centerY = h - (h * 0.15);
+    const mouthW = w * 0.8, mouthH = open ? h * 0.18 : h * 0.04;
+    const centerY = h - 140;
     ctx.fillStyle = open ? "#880e4f" : "#ad1457";
     ctx.beginPath(); ctx.ellipse(w/2, centerY, mouthW/2, mouthH, 0, 0, Math.PI * 2); ctx.fill();
-    if(open) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 10; ctx.stroke(); }
+    if(open) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 8; ctx.stroke(); }
   }
 
-  function updateGameItems(isMouthOpen) {
+  function updateItem(isMouthOpen) {
     if (!item.active) {
-      item.delayCounter++;
-      if (item.delayCounter > 45) { 
-        item.x = Math.random() * (canvas.width - 150) + 75;
+      item.delay++;
+      if (item.delay > 40) { 
+        item.x = Math.random() * (canvas.width - 100) + 50;
         item.y = -50; 
-        
-        // 70% 機率出美食，30% 機率出垃圾
-        if (Math.random() > 0.3) {
-          item.icon = foodIcons[Math.floor(Math.random() * foodIcons.length)];
-          item.type = "FOOD";
-        } else {
-          item.icon = trashIcons[Math.floor(Math.random() * trashIcons.length)];
-          item.type = "TRASH";
-        }
-        
-        item.active = true; 
-        item.delayCounter = 0;
+        const isFood = Math.random() > 0.3;
+        item.icon = isFood ? foodIcons[Math.floor(Math.random()*foodIcons.length)] : trashIcons[Math.floor(Math.random()*trashIcons.length)];
+        item.type = isFood ? "FOOD" : "TRASH";
+        item.active = true; item.delay = 0;
       }
       return;
     }
-    
     item.y += item.speed;
     ctx.font = "60px serif"; ctx.textAlign = "center";
     ctx.fillText(item.icon, item.x, item.y);
 
-    // 判定區域
-    if (item.y > canvas.height * 0.7 && isMouthOpen && item.active) {
-        if (item.type === "FOOD") {
-          score += 10;
-          showFeedback("好吃！+10");
-          if (navigator.vibrate) navigator.vibrate(60);
-        } else {
-          score -= 20;
-          showFeedback("噁心！-20");
-          if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // 長震動
-        }
-        scoreEl.innerText = score; 
-        item.active = false;
+    if (item.y > canvas.height - 200 && isMouthOpen && item.active) {
+        score += (item.type === "FOOD" ? 10 : -20);
+        scoreEl.innerText = score; item.active = false;
+        if (navigator.vibrate) navigator.vibrate(item.type === "FOOD" ? 50 : 200);
     }
-    
     if (item.y > canvas.height) item.active = false;
   }
   init();
