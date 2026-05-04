@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>口腔復健-超高感度版</title>
+  <title>口腔復健</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_landmarker/face_landmarker.js"></script>
   <style>
     body { margin: 0; overflow: hidden; font-family: sans-serif; background: #87CEEB; }
@@ -23,8 +23,8 @@
       font-size: 30px; font-weight: bold; color: white; cursor: pointer;
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
-    #btn-plus { background: #4caf50; }  /* 讓嘴巴變好張開 */
-    #btn-minus { background: #f44336; } /* 讓嘴巴變難張開 */
+    #btn-plus { background: #4caf50; }  /* 減少數值 = 變容易 */
+    #btn-minus { background: #f44336; } /* 增加數值 = 變困難 */
     .btn-label { color: white; font-size: 12px; text-align: center; font-weight: bold; }
 
     #msg-overlay {
@@ -47,12 +47,12 @@
     <button id="btn-minus" class="adjust-btn">-</button>
   </div>
 
-  <div id="sens-display">靈敏度補償 (越小越易張): <span id="sens-val">0.90</span></div>
+  <div id="sens-display">靈敏度補償 (越小越容易判定): <span id="sens-val">0.90</span></div>
 
   <div id="msg-overlay">
-    <h2 id="msg-title">🍔 美食急速練習 🍓</h2>
-    <p id="msg-text">點擊開始進行校準</p>
-    <button id="start-btn">開始 (解鎖音效)</button>
+    <h2 id="msg-title">🦷 口腔復健運動 🍎</h2>
+    <p id="msg-text">點擊「開始」進行張合校準</p>
+    <button id="start-btn">開始 (開啟音樂)</button>
   </div>
 
   <audio id="bgMusic" loop preload="auto">
@@ -76,7 +76,6 @@
   let faceLandmarker, score = 0, gameState = "LOADING"; 
   let currentRatio = 0, closeRatio = 0, openRatio = 0;
   
-  // 核心參數調整
   let sensitivityOffset = 0.90; 
   let finalThreshold = 0.5;
 
@@ -109,7 +108,6 @@
     return v / h;
   }
 
-  // 調整邏輯：點 + 會減小數值(變靈敏)，點 - 會增大數值(變遲鈍)
   document.getElementById("btn-plus").onclick = () => { 
     sensitivityOffset -= 0.1; 
     sensitivityOffset = Math.max(0.1, sensitivityOffset);
@@ -117,7 +115,7 @@
   };
   document.getElementById("btn-minus").onclick = () => { 
     sensitivityOffset += 0.1; 
-    sensitivityOffset = Math.min(5.0, sensitivityOffset); // 上限放寬到 5.0
+    sensitivityOffset = Math.min(5.0, sensitivityOffset); 
     updateThreshold(); 
   };
 
@@ -127,16 +125,16 @@
   }
 
   startBtn.onclick = () => {
-    bgMusic.play().catch(e => console.log("Audio Ready"));
+    bgMusic.play().catch(e => console.log("Audio Context Enabled"));
     if (gameState === "LOADING") {
       gameState = "CALIBRATING_CLOSE";
-      document.getElementById("msg-text").innerText = "步驟 1：請「完全閉緊嘴巴」";
-      startBtn.innerText = "擷取閉嘴";
+      document.getElementById("msg-text").innerText = "步驟 1：請確實「閉緊嘴巴」";
+      startBtn.innerText = "擷取閉嘴狀態";
     } else if (gameState === "CALIBRATING_CLOSE") {
       closeRatio = currentRatio;
       gameState = "CALIBRATING_OPEN";
-      document.getElementById("msg-text").innerText = "步驟 2：請「張嘴最大」";
-      startBtn.innerText = "擷取張嘴";
+      document.getElementById("msg-text").innerText = "步驟 2：請「張大嘴巴」";
+      startBtn.innerText = "擷取張嘴狀態";
     } else if (gameState === "CALIBRATING_OPEN") {
       openRatio = currentRatio;
       updateThreshold();
