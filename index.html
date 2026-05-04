@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>復健小遊戲-設備優化版</title>
+  <title>復健小遊戲-精準穩定版</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_landmarker/face_landmarker.js"></script>
   <style>
     body { margin: 0; overflow: hidden; font-family: sans-serif; background: #87CEEB; }
@@ -47,6 +47,7 @@
   let faceLandmarker, score = 0, gameState = "LOADING"; 
   let threshold = 0.5, currentRatio = 0, closeRatio = 0, openRatio = 0;
   
+  // 速度維持 5.5
   let food = { x: 0, y: -50, radius: 40, active: false, speed: 5.5, delayCounter: 0 };
   let openFrames = 0;
   const REQUIRED_FRAMES = 2; 
@@ -78,11 +79,11 @@
 
   startBtn.onclick = () => {
     bgMusic.volume = 1.0;
-    bgMusic.play().catch(e => console.log("Audio ready"));
+    bgMusic.play().catch(e => console.log("Audio Error"));
 
     if (gameState === "LOADING") {
       gameState = "CALIBRATING_CLOSE";
-      document.getElementById("msg-text").innerText = "步驟 1：請「抿嘴閉緊」";
+      document.getElementById("msg-text").innerText = "步驟 1：請「完全閉緊嘴巴」";
       startBtn.innerText = "擷取閉嘴狀態";
     } else if (gameState === "CALIBRATING_CLOSE") {
       closeRatio = currentRatio;
@@ -91,8 +92,8 @@
       startBtn.innerText = "擷取張嘴狀態";
     } else if (gameState === "CALIBRATING_OPEN") {
       openRatio = currentRatio;
-      // 自動化動態靈敏度核心：取張嘴與閉嘴的中間偏上位置作為觸發點
-      threshold = closeRatio + (openRatio - closeRatio) * 0.75; 
+      // 關鍵優化：將門檻提高到 0.9 (90% 幅度) 並增加基礎緩衝，防止未張嘴就觸發
+      threshold = closeRatio + (openRatio - closeRatio) * 0.9 + 0.1; 
       gameState = "PLAYING";
       overlay.style.display = "none";
     }
@@ -114,7 +115,7 @@
     if (results.faceLandmarks && results.faceLandmarks.length > 0) {
       currentRatio = getMouthRatio(results.faceLandmarks[0]);
       
-      // 改用動態 threshold 判定，減少不同設備的差異
+      // 判定邏輯：必須超過極限門檻才算張嘴
       if (currentRatio > threshold) {
         openFrames++;
       } else {
